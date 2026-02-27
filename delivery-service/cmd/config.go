@@ -8,9 +8,9 @@ type Config struct {
 	DbPassword                string
 	DbName                    string
 	DbSslMode                 string
-	DiscountServiceGrpcHost   string
+	GeoServiceGrpcHost        string
 	KafkaHost                 string
 	KafkaConsumerGroup        string
-	KafkaStocksChangedTopic   string
 	KafkaBasketConfirmedTopic string
+	KafkaOrderChangedTopic    string
 }

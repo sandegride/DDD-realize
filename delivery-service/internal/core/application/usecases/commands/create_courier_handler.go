@@ -8,17 +8,17 @@ import (
 	"delivery-service/internal/pkg/errs"
 )
 
-type CreateCourierHandler interface {
+type CreateCourierCommandHandler interface {
 	Handle(ctx context.Context, command CreateCourierCommand) error
 }
 
-var _ CreateCourierHandler = &createCourierHandler{}
+var _ CreateCourierCommandHandler = &createCourierHandler{}
 
 type createCourierHandler struct {
 	uowFactory ports.UnitOfWorkFactory
 }
 
-func NewCreateCourierHandler(uowFactory ports.UnitOfWorkFactory) (CreateCourierHandler, error) {
+func NewCreateCourierHandler(uowFactory ports.UnitOfWorkFactory) (CreateCourierCommandHandler, error) {
 	if uowFactory == nil {
 		return nil, errs.NewValueIsRequiredError("unitOfWork")
 	}

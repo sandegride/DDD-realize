@@ -6,22 +6,28 @@ import (
 	"delivery-service/internal/core/application/usecases/queries"
 	"delivery-service/internal/core/domain/services"
 	"delivery-service/internal/core/ports"
+	"delivery-service/internal/jobs"
+	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
+	"sync"
 
 	_ "gorm.io/gorm"
 	"log"
 )
 
 type CompositionRoot struct {
-	configs Config
-	gormDb  *gorm.DB
+	configs   Config
+	gormDb    *gorm.DB
+	geoClient ports.GeoClient
 
 	closers []Closer
+	onceGeo sync.Once
 }
 
-func NewCompositionRoot(config Config) CompositionRoot {
-	return CompositionRoot{
-		configs: config,
+func NewCompositionRoot(configs Config, gormDb *gorm.DB) *CompositionRoot {
+	return &CompositionRoot{
+		configs: configs,
+		gormDb:  gormDb,
 	}
 }
 
@@ -54,7 +60,7 @@ func (cr *CompositionRoot) NewCreateOrderCommandHandler() commands.CreateOrderCo
 	return commandHandler
 }
 
-func (cr *CompositionRoot) NewCreateCourierCommandHandler() commands.CreateCourierHandler {
+func (cr *CompositionRoot) NewCreateCourierCommandHandler() commands.CreateCourierCommandHandler {
 	commandHandler, err := commands.NewCreateCourierHandler(cr.NewUnitOfWorkFactory())
 	if err != nil {
 		log.Fatalf("cannot create CreateCourierCommandHandler: %v", err)
@@ -87,6 +93,15 @@ func (cr *CompositionRoot) NewAssignOrdersCommandHandler() commands.AssignOrders
 	return commandHandler
 }
 
+func (cr *CompositionRoot) NewMoveCouriersCommandHandler() commands.MoveCouriersCommandHandler {
+	commandHandler, err := commands.NewMoveCouriersCommandHandler(
+		cr.NewUnitOfWorkFactory())
+	if err != nil {
+		log.Fatalf("cannot create MoveCouriersCommandHandler: %v", err)
+	}
+	return commandHandler
+}
+
 func (cr *CompositionRoot) NewGetAllCouriersQueryHandler() queries.GetAllCouriersQueryHandler {
 	queryHandler, err := queries.NewGetAllCouriersQueryHandler(cr.gormDb)
 	if err != nil {
@@ -101,4 +116,20 @@ func (cr *CompositionRoot) NewGetNotCompletedOrdersQueryHandler() queries.GetNot
 		log.Fatalf("cannot create GetNotCompletedOrdersQueryHandler: %v", err)
 	}
 	return queryHandler
+}
+
+func (cr *CompositionRoot) NewAssignOrdersJob() cron.Job {
+	job, err := jobs.NewAssignOrdersJob(cr.NewAssignOrdersCommandHandler())
+	if err != nil {
+		log.Fatalf("cannot create AssignOrdersJob: %v", err)
+	}
+	return job
+}
+
+func (cr *CompositionRoot) NewMoveCouriersJob() cron.Job {
+	job, err := jobs.NewMoveCouriersJob(cr.NewMoveCouriersCommandHandler())
+	if err != nil {
+		log.Fatalf("cannot create MoveCouriersJob: %v", err)
+	}
+	return job
 }
