@@ -7,4 +7,5 @@ import (
 
 type GeoClient interface {
 	GetGeolocation(ctx context.Context, street string) (kernel.Location, error)
+	Close() error
 }

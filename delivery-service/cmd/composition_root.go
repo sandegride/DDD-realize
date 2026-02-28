@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	grpcout "delivery-service/internal/adapters/out/grpc/geo"
 	"delivery-service/internal/adapters/out/postgres"
 	"delivery-service/internal/core/application/usecases/commands"
 	"delivery-service/internal/core/application/usecases/queries"
@@ -53,7 +54,7 @@ func (cr *CompositionRoot) NewUnitOfWorkFactory() ports.UnitOfWorkFactory {
 }
 
 func (cr *CompositionRoot) NewCreateOrderCommandHandler() commands.CreateOrderCommandHandler {
-	commandHandler, err := commands.NewCreateOrderCommandHandler(cr.NewUnitOfWorkFactory())
+	commandHandler, err := commands.NewCreateOrderCommandHandler(cr.NewUnitOfWorkFactory(), cr.NewGeoClient())
 	if err != nil {
 		log.Fatalf("cannot create CreateOrderCommandHandler: %v", err)
 	}
@@ -132,4 +133,16 @@ func (cr *CompositionRoot) NewMoveCouriersJob() cron.Job {
 		log.Fatalf("cannot create MoveCouriersJob: %v", err)
 	}
 	return job
+}
+
+func (cr *CompositionRoot) NewGeoClient() ports.GeoClient {
+	cr.onceGeo.Do(func() {
+		client, err := grpcout.NewClient(cr.configs.GeoServiceGrpcHost)
+		if err != nil {
+			log.Fatalf("cannot create GeoClient: %v", err)
+		}
+		cr.RegisterCloser(client)
+		cr.geoClient = client
+	})
+	return cr.geoClient
 }

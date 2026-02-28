@@ -162,11 +162,6 @@ func mustAutoMigrate(db *gorm.DB) {
 	if err != nil {
 		log.Fatalf("Ошибка миграции: %v", err)
 	}
-
-	//err = db.AutoMigrate(&outbox.Message{})
-	//if err != nil {
-	//	log.Fatalf("Ошибка миграции: %v", err)
-	//}
 }
 
 func startWebServer(compositionRoot *cmd.CompositionRoot, port string) {

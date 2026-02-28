@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"delivery-service/internal/core/domain/model/kernel"
 	"delivery-service/internal/core/domain/model/order"
 	"delivery-service/internal/core/ports"
 	"delivery-service/internal/pkg/errs"
@@ -16,19 +15,26 @@ var _ CreateOrderCommandHandler = &createOrderCommandHandler{}
 
 type createOrderCommandHandler struct {
 	uowFactory ports.UnitOfWorkFactory
+	geoClient  ports.GeoClient
 }
 
-func NewCreateOrderCommandHandler(uowFactory ports.UnitOfWorkFactory) (CreateOrderCommandHandler, error) {
+func NewCreateOrderCommandHandler(
+	uowFactory ports.UnitOfWorkFactory, geoClient ports.GeoClient) (CreateOrderCommandHandler, error) {
 	if uowFactory == nil {
 		return nil, errs.NewValueIsRequiredError("unitOfWork")
 	}
+	if geoClient == nil {
+		return nil, errs.NewValueIsRequiredError("geoClient")
+	}
 
-	return &createOrderCommandHandler{uowFactory: uowFactory}, nil
+	return &createOrderCommandHandler{
+		uowFactory: uowFactory,
+		geoClient:  geoClient}, nil
 }
 
 func (ch *createOrderCommandHandler) Handle(ctx context.Context, command CreateOrderCommand) error {
 	if !command.IsValid() {
-		return errs.NewValueIsInvalidError("create order command")
+		return errs.NewValueIsRequiredError("add address command")
 	}
 
 	uow, err := ch.uowFactory.New(ctx)
@@ -45,7 +51,10 @@ func (ch *createOrderCommandHandler) Handle(ctx context.Context, command CreateO
 		return nil
 	}
 
-	location := kernel.NewRandomLocation()
+	location, err := ch.geoClient.GetGeolocation(ctx, command.Street())
+	if err != nil {
+		return err
+	}
 
 	orderAggregate, err = order.NewOrder(command.OrderID(), location, command.Volume())
 	if err != nil {
