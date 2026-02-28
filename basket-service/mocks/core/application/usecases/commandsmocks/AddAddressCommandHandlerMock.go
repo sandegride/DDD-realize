@@ -3,7 +3,7 @@
 package commandsmocks
 
 import (
-	"basket-service/internal/core/application/usecases/commands"
+	commands "basket-service/internal/core/application/usecases/commands"
 	context "context"
 
 	mock "github.com/stretchr/testify/mock"

@@ -28,6 +28,8 @@ func Test_CheckoutCommandHandlerShouldBeSuccessWhenParamsAreCorrect(t *testing.T
 	assert.NoError(t, err)
 	err = basketAggregate.AddDeliveryPeriod(deliveryPeriod)
 	assert.NoError(t, err)
+	discount, err := kernel.NewDiscount(0.01)
+	assert.NoError(t, err)
 	var capturedObj *basket.Basket
 
 	basketRepositoryMock := &portsmocks.BasketRepositoryMock{}
@@ -54,6 +56,12 @@ func Test_CheckoutCommandHandlerShouldBeSuccessWhenParamsAreCorrect(t *testing.T
 		On("RollbackUnlessCommitted", ctx).
 		Return()
 
+	discountClientMock := &portsmocks.DiscountClientMock{}
+	discountClientMock.
+		On("GetDiscount", ctx, basketAggregate).
+		Return(discount, nil).
+		Once()
+
 	promoGoodServiceMock := &servicesmocks.PromoGoodServiceMock{}
 	promoGoodServiceMock.
 		On("AddPromo", basketAggregate).
@@ -62,7 +70,7 @@ func Test_CheckoutCommandHandlerShouldBeSuccessWhenParamsAreCorrect(t *testing.T
 
 	// Act
 	checkoutCommandHandler, err := NewCheckoutCommandHandler(
-		unitOfWorkFactoryMock, promoGoodServiceMock)
+		unitOfWorkFactoryMock, promoGoodServiceMock, discountClientMock)
 	assert.NoError(t, err)
 	checkoutCommand, err := NewCheckoutCommand(basketAggregate.ID())
 	assert.NoError(t, err)

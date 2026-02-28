@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	grpcout "basket-service/internal/adapters/out/grpc/discount"
 	"basket-service/internal/adapters/out/postgres"
 	"basket-service/internal/core/application/usecases/commands"
 	"basket-service/internal/core/application/usecases/queries"
@@ -12,8 +13,9 @@ import (
 )
 
 type CompositionRoot struct {
-	configs Config
-	gormDb  *gorm.DB
+	configs        Config
+	gormDb         *gorm.DB
+	discountClient ports.DiscountClient
 
 	closers      []Closer
 	onceDiscount sync.Once
@@ -29,6 +31,18 @@ func NewCompositionRoot(configs Config, gormDb *gorm.DB) *CompositionRoot {
 func (cr *CompositionRoot) NewPromoGoodService() services.PromoGoodService {
 	promoGoodService := services.NewPromoGoodService()
 	return promoGoodService
+}
+
+func (cr *CompositionRoot) NewDiscountClient() ports.DiscountClient {
+	cr.onceDiscount.Do(func() {
+		client, err := grpcout.NewClient(cr.configs.DiscountServiceGrpcHost)
+		if err != nil {
+			log.Fatalf("cannot create DiscountClient: %v", err)
+		}
+		cr.RegisterCloser(client)
+		cr.discountClient = client
+	})
+	return cr.discountClient
 }
 
 func (cr *CompositionRoot) NewUnitOfWork() ports.UnitOfWork {
@@ -83,7 +97,7 @@ func (cr *CompositionRoot) NewChangeStocksCommandHandler() commands.ChangeStocks
 
 func (cr *CompositionRoot) NewCheckoutCommandHandler() commands.CheckoutCommandHandler {
 	commandHandler, err := commands.NewCheckoutCommandHandler(
-		cr.NewUnitOfWorkFactory(), cr.NewPromoGoodService())
+		cr.NewUnitOfWorkFactory(), cr.NewPromoGoodService(), cr.NewDiscountClient())
 	if err != nil {
 		log.Fatalf("cannot create CheckoutCommandHandler: %v", err)
 	}

@@ -1,0 +1,44 @@
+all: false
+recursive: true
+with-expecter: true
+mockname: "{{.InterfaceName}}Mock"
+filename: "{{.MockName}}.go"
+outpkg: "{{.PackageName}}mocks"
+dir: ./mocks
+
+resolve-type-alias: false
+disable-version-string: true
+issue-845-fix: true
+
+packages:
+  basket-service/internal/core/ports:
+    config:
+      dir: ./mocks/core/portsmocks
+    interfaces:
+      UnitOfWork:
+      UnitOfWorkFactory:
+      BasketRepository:
+      GoodRepository:
+      DiscountClient:
+
+  basket-service/internal/core/domain/services:
+    config:
+      dir: ./mocks/core/domain/servicesmocks
+    interfaces:
+      PromoGoodService:
+
+  basket-service/internal/core/application/usecases/commands:
+    config:
+      dir: ./mocks/core/application/usecases/commandsmocks
+    interfaces:
+      AddAddressCommandHandler:
+      AddDeliveryPeriodCommandHandler:
+      ChangeItemsCommandHandler:
+      ChangeStocksCommandHandler:
+      CheckoutCommandHandler:
+
+  basket-service/internal/core/application/usecases/queries:
+    config:
+      dir: ./mocks/core/application/usecases/queriesmocks
+    interfaces:
+      GetBasketQueryHandler:

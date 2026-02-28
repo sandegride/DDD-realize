@@ -3,7 +3,8 @@
 package queriesmocks
 
 import (
-	"basket-service/internal/core/application/usecases/queries"
+	queries "basket-service/internal/core/application/usecases/queries"
+
 	mock "github.com/stretchr/testify/mock"
 )
 

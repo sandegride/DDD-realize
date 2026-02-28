@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package discount;
+
+option csharp_namespace = "DiscountApp.Api";
+option go_package = "discountsrv/discountpb";
+
+// The Discount service definition.
+service Discount {
+
+  // Get Discount
+  rpc GetDiscount (GetDiscountRequest) returns (GetDiscountReply);
+}
+
+// Request
+message GetDiscountRequest {
+  repeated Item items = 1;
+}
+
+// Response
+message GetDiscountReply {
+  double value = 1;
+}
+
+// Items (short)
+message Item {
+  string id = 1;
+}

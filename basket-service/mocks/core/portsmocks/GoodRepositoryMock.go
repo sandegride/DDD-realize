@@ -3,7 +3,7 @@
 package portsmocks
 
 import (
-	"basket-service/internal/core/domain/model/good"
+	good "basket-service/internal/core/domain/model/good"
 	context "context"
 
 	mock "github.com/stretchr/testify/mock"

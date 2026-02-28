@@ -3,7 +3,8 @@
 package servicesmocks
 
 import (
-	"basket-service/internal/core/domain/model/basket"
+	basket "basket-service/internal/core/domain/model/basket"
+
 	mock "github.com/stretchr/testify/mock"
 )
 
