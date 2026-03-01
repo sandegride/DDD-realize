@@ -16,9 +16,9 @@ import (
 var _ ports.DiscountClient = &client{}
 
 type client struct {
-	conn            *grpc.ClientConn
-	pbDiscountClint discountpb.DiscountClient
-	timeout         time.Duration
+	conn             *grpc.ClientConn
+	pbDiscountClient discountpb.DiscountClient
+	timeout          time.Duration
 }
 
 func NewClient(host string) (ports.DiscountClient, error) {
@@ -34,9 +34,9 @@ func NewClient(host string) (ports.DiscountClient, error) {
 	pbDiscountClint := discountpb.NewDiscountClient(conn)
 
 	return &client{
-		conn:            conn,
-		pbDiscountClint: pbDiscountClint,
-		timeout:         5 * time.Second,
+		conn:             conn,
+		pbDiscountClient: pbDiscountClint,
+		timeout:          5 * time.Second,
 	}, nil
 }
 
@@ -54,7 +54,7 @@ func (c *client) GetDiscount(ctx context.Context, basket *basket.Basket) (kernel
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
-	resp, err := c.pbDiscountClint.GetDiscount(ctx, req)
+	resp, err := c.pbDiscountClient.GetDiscount(ctx, req)
 	if err != nil {
 		return kernel.Discount{}, err
 	}

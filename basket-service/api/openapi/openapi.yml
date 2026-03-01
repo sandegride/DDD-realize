@@ -1,0 +1,389 @@
+openapi: "3.0.0"
+
+info:
+  version: 1.0.0
+  title: Swagger Basket
+  description: Корзина товаров
+
+paths:
+  /api/v1/baskets:
+    post:
+      summary: Создать корзину
+      description: Создаёт новую корзину для покупателя или возвращает существующую корзину, если она уже есть.
+      operationId: CreateBasket
+      tags:
+        - CreateBasket
+      requestBody:
+        description: Идентификатор покупателя
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBasketRequest'
+      responses:
+        '201':
+          description: Корзина успешно создана или уже существует
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateBasketResponse'
+        '400':
+          description: Некорректный buyerId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Конфликт при создании корзины
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Внутренняя ошибка сервиса
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/baskets/{basketId}/address/add:
+    post:
+      summary: Добавить адрес доставки
+      description: Позволяет добавить адрес доставки
+      operationId: AddAddress
+      tags:
+        - AddAddress
+      parameters:
+        - name: basketId
+          in: path
+          description: Идентификатор корзины
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        description: Адрес доставки
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Address'
+      responses:
+        '200':
+          description: Успешный ответ
+        '400':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Ошибка выполнения бизнес логики
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/baskets/{basketId}/delivery-period/add:
+    post:
+      summary: Добавить период доставки
+      description: Позволяет добавить период доставки
+      operationId: AddDeliveryPeriod
+      tags:
+        - AddDeliveryPeriod
+      parameters:
+        - name: basketId
+          in: path
+          description: Идентификатор корзины
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        description: Период доставки
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryPeriod'
+      responses:
+        '200':
+          description: Успешный ответ
+        default:
+          description: Ошибка
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/baskets/{basketId}/items/change:
+    post:
+      summary: Изменить позицию
+      description: Позволяет добавить, удалить или изменить позицию
+      operationId: ChangeItems
+      tags:
+        - ChangeItems
+      parameters:
+        - name: basketId
+          in: path
+          description: Идентификатор корзины
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        description: Позиция корзины
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Item'
+      responses:
+        '200':
+          description: Успешный ответ
+        default:
+          description: Ошибка
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/baskets/{basketId}/checkout:
+    post:
+      summary: Оформить корзину
+      description: Позволяет оформить корзину
+      operationId: Checkout
+      tags:
+        - Checkout
+      parameters:
+        - name: basketId
+          in: path
+          description: Идентификатор корзины
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Успешный ответ
+        '400':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Ошибка выполнения бизнес логики
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/baskets/{basketId}:
+    get:
+      summary: Получить корзину
+      description: Позволяет получить корзину
+      operationId: GetBasket
+      tags:
+        - GetBasket
+      parameters:
+        - name: basketId
+          in: path
+          description: Идентификатор корзины
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Basket'
+        default:
+          description: Ошибка
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/baskets/{basketId}/short:
+    get:
+      summary: Получить краткую информацию о корзине
+      description: Позволяет получить краткую информацию о корзине
+      operationId: GetShortBasket
+      tags:
+        - GetShortBasket
+      parameters:
+        - name: basketId
+          in: path
+          description: Идентификатор корзины
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShortBasket'
+        default:
+          description: Ошибка
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+
+    CreateBasketRequest:
+      type: object
+      required:
+        - buyerId
+      properties:
+        buyerId:
+          type: string
+          format: uuid
+          description: Идентификатор покупателя
+
+    CreateBasketResponse:
+      type: object
+      required:
+        - basketId
+      properties:
+        basketId:
+          type: string
+          format: uuid
+          description: Идентификатор корзины
+
+    Address:
+      type: object
+      required:
+        - country
+        - city
+        - street
+        - house
+        - apartment
+      properties:
+        country:
+          type: string
+          description: Страна
+        city:
+          type: string
+          description: Город
+        street:
+          type: string
+          description: Улица
+        house:
+          type: string
+          description: Дом
+        apartment:
+          type: string
+          description: Квартира
+
+    DeliveryPeriod:
+      type: string
+      description: Период доставки
+      enum:
+        - morning
+        - midday
+        - evening
+        - night
+
+    Item:
+      type: object
+      required:
+        - goodId
+        - quantity
+      properties:
+        goodId:
+          type: string
+          format: uuid
+          description: Идентификатор товара
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Количество
+
+    ExistedItem:
+      allOf:
+        - $ref: '#/components/schemas/Item'
+        - type: object
+          required:
+            - id
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: Идентификатор позиции
+
+    ShortBasket:
+      type: object
+      required:
+        - quantity
+        - total
+      properties:
+        quantity:
+          type: integer
+          description: Количество товаров в корзине
+        total:
+          type: number
+          format: double
+          description: Итоговая стоимость
+
+    Basket:
+      type: object
+      required:
+        - id
+        - items
+        - total
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Идентификатор корзины
+        address:
+          $ref: '#/components/schemas/Address'
+          description: Адрес доставки
+        deliveryPeriod:
+          $ref: '#/components/schemas/DeliveryPeriod'
+          description: Период доставки
+        items:
+          type: array
+          description: Товарные позиции
+          items:
+            $ref: '#/components/schemas/ExistedItem'
+        total:
+          type: number
+          format: double
+          description: Итоговая стоимость
+        status:
+          type: string
+          enum:
+            - created
+            - confirmed
+          description: Статус корзины
+
+    Error:
+      type: object
+      required:
+        - type
+        - title
+        - status
+        - detail
+
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string

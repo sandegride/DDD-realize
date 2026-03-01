@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	kafkain "basket-service/internal/adapters/in/kafka"
 	grpcout "basket-service/internal/adapters/out/grpc/discount"
 	"basket-service/internal/adapters/out/postgres"
 	"basket-service/internal/core/application/usecases/commands"
@@ -110,4 +111,18 @@ func (cr *CompositionRoot) NewGetBasketQueryHandler() queries.GetBasketQueryHand
 		log.Fatalf("cannot create GetBasketQueryHandler: %v", err)
 	}
 	return queryHandler
+}
+
+func (cr *CompositionRoot) NewStocksChangedConsumer() kafkain.StocksChangedConsumer {
+	consumer, err := kafkain.NewStocksChangedConsumer(
+		[]string{cr.configs.KafkaHost},
+		cr.configs.KafkaConsumerGroup,
+		cr.configs.KafkaStocksChangedTopic,
+		cr.NewChangeStocksCommandHandler(),
+	)
+	if err != nil {
+		log.Fatalf("cannot create StocksChangedConsumer: %v", err)
+	}
+	cr.RegisterCloser(consumer)
+	return consumer
 }

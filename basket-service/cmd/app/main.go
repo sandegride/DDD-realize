@@ -52,6 +52,7 @@ func main() {
 	)
 	defer compositionRoot.CloseAll()
 
+	startKafkaConsumer(compositionRoot)
 	startWebServer(compositionRoot, configs.HttpPort)
 }
 
@@ -253,4 +254,12 @@ func registerSwaggerUi(e *echo.Echo) {
 		</html>`
 		return c.HTML(http.StatusOK, html)
 	})
+}
+
+func startKafkaConsumer(compositionRoot *cmd.CompositionRoot) {
+	go func() {
+		if err := compositionRoot.NewStocksChangedConsumer().Consume(); err != nil {
+			log.Fatalf("Kafka consumer error: %v", err)
+		}
+	}()
 }
