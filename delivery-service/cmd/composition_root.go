@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	kafkain "delivery-service/internal/adapters/in/kafka"
 	grpcout "delivery-service/internal/adapters/out/grpc/geo"
 	"delivery-service/internal/adapters/out/postgres"
 	"delivery-service/internal/core/application/usecases/commands"
@@ -145,4 +146,18 @@ func (cr *CompositionRoot) NewGeoClient() ports.GeoClient {
 		cr.geoClient = client
 	})
 	return cr.geoClient
+}
+
+func (cr *CompositionRoot) NewBasketConfirmedConsumer() kafkain.BasketConfirmedConsumer {
+	consumer, err := kafkain.NewBasketConfirmedConsumer(
+		[]string{cr.configs.KafkaHost},
+		cr.configs.KafkaConsumerGroup,
+		cr.configs.KafkaBasketConfirmedTopic,
+		cr.NewCreateOrderCommandHandler(),
+	)
+	if err != nil {
+		log.Fatalf("cannot create BasketConfirmedConsumer: %v", err)
+	}
+	cr.RegisterCloser(consumer)
+	return consumer
 }
