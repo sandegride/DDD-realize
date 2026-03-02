@@ -33,16 +33,9 @@ func Test_AddAddressCommandHandlerShouldBeSuccessWhenParamsAreCorrect(t *testing
 	unitOfWorkMock.
 		On("BasketRepository").
 		Return(basketRepositoryMock)
-	unitOfWorkFactoryMock := &portsmocks.UnitOfWorkFactoryMock{}
-	unitOfWorkFactoryMock.
-		On("New", ctx).
-		Return(unitOfWorkMock, nil)
-	unitOfWorkMock.
-		On("RollbackUnlessCommitted", ctx).
-		Return()
 
 	// Act
-	addAddressCommandHandler, err := NewAddAddressCommandHandler(unitOfWorkFactoryMock)
+	addAddressCommandHandler, err := NewAddAddressCommandHandler(unitOfWorkMock)
 	assert.NoError(t, err)
 	addAddressCommand, err := NewAddAddressCommand(basketAggregate.ID(),
 		"Россия", "Москва", "Тверская", "1", "2")

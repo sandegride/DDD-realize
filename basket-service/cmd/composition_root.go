@@ -43,18 +43,6 @@ func (cr *CompositionRoot) NewPromoGoodService() services.PromoGoodService {
 	return promoGoodService
 }
 
-func (cr *CompositionRoot) NewDiscountClient() ports.DiscountClient {
-	cr.onceDiscount.Do(func() {
-		client, err := grpcout.NewClient(cr.configs.DiscountServiceGrpcHost)
-		if err != nil {
-			log.Fatalf("cannot create DiscountClient: %v", err)
-		}
-		cr.RegisterCloser(client)
-		cr.discountClient = client
-	})
-	return cr.discountClient
-}
-
 func (cr *CompositionRoot) NewUnitOfWork() ports.UnitOfWork {
 	unitOfWork, err := postgres.NewUnitOfWork(cr.gormDb)
 	if err != nil {
@@ -63,16 +51,8 @@ func (cr *CompositionRoot) NewUnitOfWork() ports.UnitOfWork {
 	return unitOfWork
 }
 
-func (cr *CompositionRoot) NewUnitOfWorkFactory() ports.UnitOfWorkFactory {
-	unitOfWorkFactory, err := postgres.NewUnitOfWorkFactory(cr.gormDb)
-	if err != nil {
-		log.Fatalf("cannot create UnitOfWorkFactory: %v", err)
-	}
-	return unitOfWorkFactory
-}
-
 func (cr *CompositionRoot) NewAddAddressCommandHandler() commands.AddAddressCommandHandler {
-	commandHandler, err := commands.NewAddAddressCommandHandler(cr.NewUnitOfWorkFactory())
+	commandHandler, err := commands.NewAddAddressCommandHandler(cr.NewUnitOfWork())
 	if err != nil {
 		log.Fatalf("cannot create AddAddressCommandHandler: %v", err)
 	}
@@ -80,7 +60,7 @@ func (cr *CompositionRoot) NewAddAddressCommandHandler() commands.AddAddressComm
 }
 
 func (cr *CompositionRoot) NewAddDeliveryPeriodCommandHandler() commands.AddDeliveryPeriodCommandHandler {
-	commandHandler, err := commands.NewAddDeliveryPeriodCommandHandler(cr.NewUnitOfWorkFactory())
+	commandHandler, err := commands.NewAddDeliveryPeriodCommandHandler(cr.NewUnitOfWork())
 	if err != nil {
 		log.Fatalf("cannot create AddDeliveryPeriodCommandHandler: %v", err)
 	}
@@ -89,7 +69,7 @@ func (cr *CompositionRoot) NewAddDeliveryPeriodCommandHandler() commands.AddDeli
 
 func (cr *CompositionRoot) NewChangeItemsCommandHandler() commands.ChangeItemsCommandHandler {
 	commandHandler, err := commands.NewChangeItemsCommandHandler(
-		cr.NewUnitOfWorkFactory())
+		cr.NewUnitOfWork())
 	if err != nil {
 		log.Fatalf("cannot create ChangeItemsCommandHandler: %v", err)
 	}
@@ -98,7 +78,7 @@ func (cr *CompositionRoot) NewChangeItemsCommandHandler() commands.ChangeItemsCo
 
 func (cr *CompositionRoot) NewChangeStocksCommandHandler() commands.ChangeStocksCommandHandler {
 	commandHandler, err := commands.NewChangeStocksCommandHandler(
-		cr.NewUnitOfWorkFactory())
+		cr.NewUnitOfWork())
 	if err != nil {
 		log.Fatalf("cannot create ChangeStocksCommandHandler: %v", err)
 	}
@@ -107,7 +87,7 @@ func (cr *CompositionRoot) NewChangeStocksCommandHandler() commands.ChangeStocks
 
 func (cr *CompositionRoot) NewCheckoutCommandHandler() commands.CheckoutCommandHandler {
 	commandHandler, err := commands.NewCheckoutCommandHandler(
-		cr.NewUnitOfWorkFactory(), cr.NewPromoGoodService(), cr.NewDiscountClient())
+		cr.NewUnitOfWork(), cr.NewPromoGoodService(), cr.NewDiscountClient())
 	if err != nil {
 		log.Fatalf("cannot create CheckoutCommandHandler: %v", err)
 	}
@@ -120,6 +100,18 @@ func (cr *CompositionRoot) NewGetBasketQueryHandler() queries.GetBasketQueryHand
 		log.Fatalf("cannot create GetBasketQueryHandler: %v", err)
 	}
 	return queryHandler
+}
+
+func (cr *CompositionRoot) NewDiscountClient() ports.DiscountClient {
+	cr.onceDiscount.Do(func() {
+		client, err := grpcout.NewClient(cr.configs.DiscountServiceGrpcHost)
+		if err != nil {
+			log.Fatalf("cannot create DiscountClient: %v", err)
+		}
+		cr.RegisterCloser(client)
+		cr.discountClient = client
+	})
+	return cr.discountClient
 }
 
 func (cr *CompositionRoot) NewStocksChangedConsumer() kafkain.StocksChangedConsumer {
@@ -136,15 +128,6 @@ func (cr *CompositionRoot) NewStocksChangedConsumer() kafkain.StocksChangedConsu
 	return consumer
 }
 
-func (cr *CompositionRoot) NewBasketProducer() ports.BasketProducer {
-	producer, err := kafkaout.NewBasketProducer([]string{cr.configs.KafkaHost}, cr.configs.KafkaBasketConfirmedTopic)
-	if err != nil {
-		log.Fatalf("cannot create OrderProducer: %v", err)
-	}
-	cr.RegisterCloser(producer)
-	return producer
-}
-
 func (cr *CompositionRoot) NewBasketCompletedDomainEventHandler() ddd.EventHandler {
 	producer := cr.NewBasketProducer()
 	handler, err := eventhandlers.NewBasketCompletedDomainEventHandler(producer)
@@ -158,6 +141,15 @@ func (cr *CompositionRoot) NewMediatrWithSubscriptions() ddd.Mediatr {
 	mediatr := ddd.NewMediatr()
 	mediatr.Subscribe(cr.NewBasketCompletedDomainEventHandler(), basket.NewEmptyConfirmedDomainEvent())
 	return mediatr
+}
+
+func (cr *CompositionRoot) NewBasketProducer() ports.BasketProducer {
+	producer, err := kafkaout.NewBasketProducer([]string{cr.configs.KafkaHost}, cr.configs.KafkaBasketConfirmedTopic)
+	if err != nil {
+		log.Fatalf("cannot create OrderProducer: %v", err)
+	}
+	cr.RegisterCloser(producer)
+	return producer
 }
 
 func (cr *CompositionRoot) NewEventRegistry() outbox.EventRegistry {

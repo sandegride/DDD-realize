@@ -14,17 +14,16 @@ type AddDeliveryPeriodCommandHandler interface {
 var _ AddDeliveryPeriodCommandHandler = &addDeliveryPeriodCommandHandler{}
 
 type addDeliveryPeriodCommandHandler struct {
-	uowFactory ports.UnitOfWorkFactory
+	unitOfWork ports.UnitOfWork
 }
 
-func NewAddDeliveryPeriodCommandHandler(
-	uowFactory ports.UnitOfWorkFactory) (AddDeliveryPeriodCommandHandler, error) {
-	if uowFactory == nil {
+func NewAddDeliveryPeriodCommandHandler(unitOfWork ports.UnitOfWork) (AddDeliveryPeriodCommandHandler, error) {
+	if unitOfWork == nil {
 		return nil, errs.NewValueIsRequiredError("unitOfWork")
 	}
 
 	return &addDeliveryPeriodCommandHandler{
-		uowFactory: uowFactory}, nil
+		unitOfWork: unitOfWork}, nil
 }
 
 func (ch *addDeliveryPeriodCommandHandler) Handle(ctx context.Context, command AddDeliveryPeriodCommand) error {
@@ -32,20 +31,11 @@ func (ch *addDeliveryPeriodCommandHandler) Handle(ctx context.Context, command A
 		return errs.NewValueIsRequiredError("add delivery period command")
 	}
 
-	// Создаем UoW
-	uow, err := ch.uowFactory.New(ctx)
-	if err != nil {
-		return err
-	}
-	defer uow.RollbackUnlessCommitted(ctx)
-
-	// Восстановили
-	basketAggregate, err := uow.BasketRepository().Get(ctx, command.BasketID())
+	basketAggregate, err := ch.unitOfWork.BasketRepository().Get(ctx, command.BasketID())
 	if err != nil {
 		return err
 	}
 
-	// Изменили
 	deliveryPeriod, err := basket.GetDeliveryPeriodByName(command.DeliveryPeriod().String())
 	if err != nil {
 		return err
@@ -55,8 +45,7 @@ func (ch *addDeliveryPeriodCommandHandler) Handle(ctx context.Context, command A
 		return err
 	}
 
-	// Сохранили
-	err = uow.BasketRepository().Update(ctx, basketAggregate)
+	err = ch.unitOfWork.BasketRepository().Update(ctx, basketAggregate)
 	if err != nil {
 		return err
 	}

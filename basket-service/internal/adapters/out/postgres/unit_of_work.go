@@ -6,6 +6,7 @@ import (
 	"basket-service/internal/core/ports"
 	"basket-service/internal/pkg/ddd"
 	"basket-service/internal/pkg/errs"
+	"basket-service/internal/pkg/outbox"
 	"context"
 	"errors"
 
@@ -18,7 +19,6 @@ var _ ports.UnitOfWork = &UnitOfWork{}
 type UnitOfWork struct {
 	tx                *gorm.DB
 	db                *gorm.DB
-	committed         bool
 	trackedAggregates []ddd.AggregateRoot
 	basketRepository  ports.BasketRepository
 	goodRepository    ports.GoodRepository
@@ -74,7 +74,6 @@ func (u *UnitOfWork) BasketRepository() ports.BasketRepository {
 
 func (u *UnitOfWork) Begin(ctx context.Context) {
 	u.tx = u.db.WithContext(ctx).Begin()
-	u.committed = false
 }
 
 func (u *UnitOfWork) Commit(ctx context.Context) error {
@@ -82,26 +81,47 @@ func (u *UnitOfWork) Commit(ctx context.Context) error {
 		return errs.NewValueIsRequiredError("cannot commit without transaction")
 	}
 
+	committed := false
+	defer func() {
+		if !committed {
+			if err := u.tx.WithContext(ctx).Rollback().Error; err != nil && !errors.Is(err, gorm.ErrInvalidTransaction) {
+				log.Error(err)
+			}
+			u.clearTx()
+		}
+	}()
+
+	if err := u.persistDomainEvents(ctx, u.tx); err != nil {
+		return err
+	}
+
 	if err := u.tx.WithContext(ctx).Commit().Error; err != nil {
 		return err
 	}
 
-	u.committed = true
+	committed = true
 	u.clearTx()
-	return nil
-}
 
-func (u *UnitOfWork) RollbackUnlessCommitted(ctx context.Context) {
-	if u.tx != nil && !u.committed {
-		if err := u.tx.WithContext(ctx).Rollback().Error; err != nil && !errors.Is(err, gorm.ErrInvalidTransaction) {
-			log.Error(err)
-		}
-		u.clearTx()
-	}
+	return nil
 }
 
 func (u *UnitOfWork) clearTx() {
 	u.tx = nil
 	u.trackedAggregates = nil
-	u.committed = false
+}
+
+func (u *UnitOfWork) persistDomainEvents(ctx context.Context, tx *gorm.DB) error {
+	for _, agg := range u.trackedAggregates {
+		outboxEvents, err := outbox.EncodeDomainEvents(agg.GetDomainEvents())
+		if err != nil {
+			return err
+		}
+		if len(outboxEvents) > 0 {
+			if err := tx.WithContext(ctx).Create(&outboxEvents).Error; err != nil {
+				return err
+			}
+		}
+		agg.ClearDomainEvents()
+	}
+	return nil
 }

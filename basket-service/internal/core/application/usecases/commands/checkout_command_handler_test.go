@@ -48,13 +48,6 @@ func Test_CheckoutCommandHandlerShouldBeSuccessWhenParamsAreCorrect(t *testing.T
 	unitOfWorkMock.
 		On("BasketRepository").
 		Return(basketRepositoryMock)
-	unitOfWorkFactoryMock := &portsmocks.UnitOfWorkFactoryMock{}
-	unitOfWorkFactoryMock.
-		On("New", ctx).
-		Return(unitOfWorkMock, nil)
-	unitOfWorkMock.
-		On("RollbackUnlessCommitted", ctx).
-		Return()
 
 	discountClientMock := &portsmocks.DiscountClientMock{}
 	discountClientMock.
@@ -70,7 +63,7 @@ func Test_CheckoutCommandHandlerShouldBeSuccessWhenParamsAreCorrect(t *testing.T
 
 	// Act
 	checkoutCommandHandler, err := NewCheckoutCommandHandler(
-		unitOfWorkFactoryMock, promoGoodServiceMock, discountClientMock)
+		unitOfWorkMock, promoGoodServiceMock, discountClientMock)
 	assert.NoError(t, err)
 	checkoutCommand, err := NewCheckoutCommand(basketAggregate.ID())
 	assert.NoError(t, err)

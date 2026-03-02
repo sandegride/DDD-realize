@@ -14,15 +14,15 @@ type CheckoutCommandHandler interface {
 var _ CheckoutCommandHandler = &checkoutCommandHandler{}
 
 type checkoutCommandHandler struct {
-	uowFactory       ports.UnitOfWorkFactory
+	unitOfWork       ports.UnitOfWork
 	promoGoodService services.PromoGoodService
 	discountClient   ports.DiscountClient
 }
 
 func NewCheckoutCommandHandler(
-	uowFactory ports.UnitOfWorkFactory,
+	unitOfWork ports.UnitOfWork,
 	promoGoodService services.PromoGoodService, discountClient ports.DiscountClient) (CheckoutCommandHandler, error) {
-	if uowFactory == nil {
+	if unitOfWork == nil {
 		return nil, errs.NewValueIsRequiredError("unitOfWork")
 	}
 	if promoGoodService == nil {
@@ -33,7 +33,7 @@ func NewCheckoutCommandHandler(
 	}
 
 	return &checkoutCommandHandler{
-		uowFactory:       uowFactory,
+		unitOfWork:       unitOfWork,
 		promoGoodService: promoGoodService,
 		discountClient:   discountClient,
 	}, nil
@@ -44,13 +44,7 @@ func (ch *checkoutCommandHandler) Handle(ctx context.Context, command CheckoutCo
 		return errs.NewValueIsRequiredError("checkout command")
 	}
 
-	uow, err := ch.uowFactory.New(ctx)
-	if err != nil {
-		return err
-	}
-	defer uow.RollbackUnlessCommitted(ctx)
-
-	basketAggregate, err := uow.BasketRepository().Get(ctx, command.BasketID())
+	basketAggregate, err := ch.unitOfWork.BasketRepository().Get(ctx, command.BasketID())
 	if err != nil {
 		return err
 	}
@@ -70,7 +64,7 @@ func (ch *checkoutCommandHandler) Handle(ctx context.Context, command CheckoutCo
 		return err
 	}
 
-	err = uow.BasketRepository().Update(ctx, basketAggregate)
+	err = ch.unitOfWork.BasketRepository().Update(ctx, basketAggregate)
 	if err != nil {
 		return err
 	}

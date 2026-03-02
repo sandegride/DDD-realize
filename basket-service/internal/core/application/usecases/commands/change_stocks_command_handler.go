@@ -13,17 +13,16 @@ type ChangeStocksCommandHandler interface {
 var _ ChangeStocksCommandHandler = &changeStocksCommandHandler{}
 
 type changeStocksCommandHandler struct {
-	uowFactory ports.UnitOfWorkFactory
+	unitOfWork ports.UnitOfWork
 }
 
-func NewChangeStocksCommandHandler(
-	uowFactory ports.UnitOfWorkFactory) (ChangeStocksCommandHandler, error) {
-	if uowFactory == nil {
+func NewChangeStocksCommandHandler(unitOfWork ports.UnitOfWork) (ChangeStocksCommandHandler, error) {
+	if unitOfWork == nil {
 		return nil, errs.NewValueIsRequiredError("unitOfWork")
 	}
 
 	return &changeStocksCommandHandler{
-		uowFactory: uowFactory}, nil
+		unitOfWork: unitOfWork}, nil
 }
 
 func (ch *changeStocksCommandHandler) Handle(ctx context.Context, command ChangeStocksCommand) error {
@@ -31,15 +30,8 @@ func (ch *changeStocksCommandHandler) Handle(ctx context.Context, command Change
 		return errs.NewValueIsRequiredError("change stocks command")
 	}
 
-	// Создаем UoW
-	uow, err := ch.uowFactory.New(ctx)
-	if err != nil {
-		return err
-	}
-	defer uow.RollbackUnlessCommitted(ctx)
-
 	// Восстановили
-	goodAggregate, err := uow.GoodRepository().Get(ctx, command.GoodID())
+	goodAggregate, err := ch.unitOfWork.GoodRepository().Get(ctx, command.GoodID())
 	if err != nil {
 		return err
 	}
@@ -51,7 +43,7 @@ func (ch *changeStocksCommandHandler) Handle(ctx context.Context, command Change
 	}
 
 	// Сохранили
-	err = uow.GoodRepository().Update(ctx, goodAggregate)
+	err = ch.unitOfWork.GoodRepository().Update(ctx, goodAggregate)
 	if err != nil {
 		return err
 	}

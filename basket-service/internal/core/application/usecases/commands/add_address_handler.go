@@ -14,16 +14,17 @@ type AddAddressCommandHandler interface {
 var _ AddAddressCommandHandler = &addAddressCommandHandler{}
 
 type addAddressCommandHandler struct {
-	uowFactory ports.UnitOfWorkFactory
+	unitOfWork ports.UnitOfWork
 }
 
 func NewAddAddressCommandHandler(
-	uowFactory ports.UnitOfWorkFactory) (AddAddressCommandHandler, error) {
-	if uowFactory == nil {
+	unitOfWork ports.UnitOfWork) (AddAddressCommandHandler, error) {
+	if unitOfWork == nil {
 		return nil, errs.NewValueIsRequiredError("unitOfWork")
 	}
 
-	return &addAddressCommandHandler{uowFactory: uowFactory}, nil
+	return &addAddressCommandHandler{
+		unitOfWork: unitOfWork}, nil
 }
 
 func (ch *addAddressCommandHandler) Handle(ctx context.Context, command AddAddressCommand) error {
@@ -31,20 +32,11 @@ func (ch *addAddressCommandHandler) Handle(ctx context.Context, command AddAddre
 		return errs.NewValueIsRequiredError("add address command")
 	}
 
-	// Создаем UoW
-	uow, err := ch.uowFactory.New(ctx)
-	if err != nil {
-		return err
-	}
-	defer uow.RollbackUnlessCommitted(ctx)
-
-	// Восстановили
-	basketAggregate, err := uow.BasketRepository().Get(ctx, command.BasketID())
+	basketAggregate, err := ch.unitOfWork.BasketRepository().Get(ctx, command.BasketID())
 	if err != nil {
 		return err
 	}
 
-	// Изменили
 	address, err := kernel.NewAddress(command.Country(), command.City(), command.Street(),
 		command.House(), command.Apartment())
 	if err != nil {
@@ -55,8 +47,7 @@ func (ch *addAddressCommandHandler) Handle(ctx context.Context, command AddAddre
 		return err
 	}
 
-	// Сохранили
-	err = uow.BasketRepository().Update(ctx, basketAggregate)
+	err = ch.unitOfWork.BasketRepository().Update(ctx, basketAggregate)
 	if err != nil {
 		return err
 	}

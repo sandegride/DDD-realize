@@ -15,17 +15,16 @@ type ChangeItemsCommandHandler interface {
 var _ ChangeItemsCommandHandler = &changeItemsCommandHandler{}
 
 type changeItemsCommandHandler struct {
-	uowFactory ports.UnitOfWorkFactory
+	unitOfWork ports.UnitOfWork
 }
 
-func NewChangeItemsCommandHandler(
-	uowFactory ports.UnitOfWorkFactory) (ChangeItemsCommandHandler, error) {
-	if uowFactory == nil {
+func NewChangeItemsCommandHandler(unitOfWork ports.UnitOfWork) (ChangeItemsCommandHandler, error) {
+	if unitOfWork == nil {
 		return nil, errs.NewValueIsRequiredError("unitOfWork")
 	}
 
 	return &changeItemsCommandHandler{
-		uowFactory: uowFactory}, nil
+		unitOfWork: unitOfWork}, nil
 }
 
 func (ch *changeItemsCommandHandler) Handle(ctx context.Context, command ChangeItemsCommand) error {
@@ -33,20 +32,13 @@ func (ch *changeItemsCommandHandler) Handle(ctx context.Context, command ChangeI
 		return errs.NewValueIsRequiredError("change items command")
 	}
 
-	// Создаем UoW
-	uow, err := ch.uowFactory.New(ctx)
-	if err != nil {
-		return err
-	}
-	defer uow.RollbackUnlessCommitted(ctx)
-
 	// Восстановили
-	goodAggregate, err := uow.GoodRepository().Get(ctx, command.GoodID())
+	goodAggregate, err := ch.unitOfWork.GoodRepository().Get(ctx, command.GoodID())
 	if err != nil {
 		return err
 	}
 
-	basketAggregate, err := uow.BasketRepository().Get(ctx, command.BasketID())
+	basketAggregate, err := ch.unitOfWork.BasketRepository().Get(ctx, command.BasketID())
 	if err != nil {
 		if errors.Is(err, errs.ErrObjectNotFound) {
 			basketAggregate, err = basket.NewBasket(command.BasketID())
@@ -55,7 +47,7 @@ func (ch *changeItemsCommandHandler) Handle(ctx context.Context, command ChangeI
 			}
 
 			// Добавили
-			err = uow.BasketRepository().Add(ctx, basketAggregate)
+			err = ch.unitOfWork.BasketRepository().Add(ctx, basketAggregate)
 			if err != nil {
 				return err
 			}
@@ -76,20 +68,20 @@ func (ch *changeItemsCommandHandler) Handle(ctx context.Context, command ChangeI
 	}
 
 	// Начали транзакцию
-	uow.Begin(ctx)
+	ch.unitOfWork.Begin(ctx)
 
 	// Обновили данные в репозиториях
-	err = uow.BasketRepository().Update(ctx, basketAggregate)
+	err = ch.unitOfWork.BasketRepository().Update(ctx, basketAggregate)
 	if err != nil {
 		return err
 	}
-	err = uow.GoodRepository().Update(ctx, goodAggregate)
+	err = ch.unitOfWork.GoodRepository().Update(ctx, goodAggregate)
 	if err != nil {
 		return err
 	}
 
 	// Завершили транзакцию
-	err = uow.Commit(ctx)
+	err = ch.unitOfWork.Commit(ctx)
 	if err != nil {
 		return err
 	}

@@ -9,5 +9,4 @@ type UnitOfWork interface {
 	Commit(ctx context.Context) error
 	BasketRepository() BasketRepository
 	GoodRepository() GoodRepository
-	RollbackUnlessCommitted(ctx context.Context)
 }
