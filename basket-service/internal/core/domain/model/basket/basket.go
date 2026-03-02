@@ -193,7 +193,6 @@ func (b *Basket) Checkout(discount kernel.Discount) error {
 		return errs.NewValueIsRequiredError("discount")
 	}
 
-	// Рассчитываем итоговую стоимость, учитывая размер скидки
 	var total = b.getTotal()
 	totalWithDiscount, err := discount.Apply(total)
 	if err != nil {
@@ -201,8 +200,10 @@ func (b *Basket) Checkout(discount kernel.Discount) error {
 	}
 	b.total = totalWithDiscount
 
-	// Меняем статус
 	b.status = StatusConfirmed
+
+	b.RaiseDomainEvent(NewConfirmedDomainEvent(b))
+
 	return nil
 }
 

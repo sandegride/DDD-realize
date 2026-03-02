@@ -8,6 +8,7 @@ import (
 	"basket-service/internal/core/domain/model/good"
 	"basket-service/internal/generated/servers"
 	"basket-service/internal/pkg/errs"
+	"basket-service/internal/pkg/outbox"
 	"database/sql"
 	"fmt"
 	"github.com/joho/godotenv"
@@ -16,6 +17,7 @@ import (
 	"github.com/labstack/gommon/log"
 	_ "github.com/lib/pq"
 	oam "github.com/oapi-codegen/echo-middleware"
+	"github.com/robfig/cron/v3"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -53,6 +55,7 @@ func main() {
 	defer compositionRoot.CloseAll()
 
 	startKafkaConsumer(compositionRoot)
+	startCron(compositionRoot)
 	startWebServer(compositionRoot, configs.HttpPort)
 }
 
@@ -99,7 +102,6 @@ func crateDbIfNotExists(host string, port string, user string,
 		}
 	}()
 
-	// Создаём базу данных, если её нет
 	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbName))
 	if err != nil {
 		log.Printf("Ошибка создания БД (возможно, уже существует): %v", err)
@@ -169,14 +171,18 @@ func mustAutoMigrate(db *gorm.DB) {
 		log.Fatalf("Ошибка миграции: %v", err)
 	}
 
-	// Seed
+	err = db.AutoMigrate(&outbox.Message{})
+	if err != nil {
+		log.Fatalf("Ошибка миграции: %v", err)
+	}
+
 	goodDTOs := make([]goodrepo.GoodDTO, len(good.Goods))
 	for i, goodAggregate := range good.Goods {
 		goodDTOs[i] = goodrepo.DomainToDTO(goodAggregate)
 	}
 
 	err = db.Clauses(clause.OnConflict{
-		UpdateAll: true, // обновит все поля, кроме PK
+		UpdateAll: true,
 	}).Create(&goodDTOs).Error
 	if err != nil {
 		log.Fatalf("Ошибка при вставке товаров: %v", err)
@@ -262,4 +268,13 @@ func startKafkaConsumer(compositionRoot *cmd.CompositionRoot) {
 			log.Fatalf("Kafka consumer error: %v", err)
 		}
 	}()
+}
+
+func startCron(compositionRoot *cmd.CompositionRoot) {
+	c := cron.New()
+	_, err := c.AddJob("@every 1s", compositionRoot.NewOutboxJob())
+	if err != nil {
+		log.Fatalf("ошибка при добавлении задачи: %v", err)
+	}
+	c.Start()
 }
