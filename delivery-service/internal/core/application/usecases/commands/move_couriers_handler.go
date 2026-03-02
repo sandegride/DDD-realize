@@ -14,27 +14,26 @@ type MoveCouriersCommandHandler interface {
 var _ MoveCouriersCommandHandler = &moveCouriersCommandHandler{}
 
 type moveCouriersCommandHandler struct {
-	uowFactory ports.UnitOfWorkFactory
+	unitOfWork ports.UnitOfWork
 }
 
 func NewMoveCouriersCommandHandler(
-	uowFactory ports.UnitOfWorkFactory) (MoveCouriersCommandHandler, error) {
-	if uowFactory == nil {
+	unitOfWork ports.UnitOfWork) (MoveCouriersCommandHandler, error) {
+	if unitOfWork == nil {
 		return nil, errs.NewValueIsRequiredError("unitOfWork")
 	}
 
 	return &moveCouriersCommandHandler{
-		uowFactory: uowFactory}, nil
+		unitOfWork: unitOfWork}, nil
 }
 
 func (ch *moveCouriersCommandHandler) Handle(ctx context.Context, command MoveCouriersCommand) error {
-	uow, err := ch.uowFactory.New(ctx)
-	if err != nil {
-		return err
+	if !command.IsValid() {
+		return errs.NewValueIsRequiredError("add address command")
 	}
-	defer uow.RollbackUnlessCommitted(ctx)
 
-	assignedOrders, err := uow.OrderRepository().GetAllInAssignedStatus(ctx)
+	// Восстановили
+	assignedOrders, err := ch.unitOfWork.OrderRepository().GetAllInAssignedStatus(ctx)
 	if err != nil {
 		if errors.Is(err, errs.ErrObjectNotFound) {
 			return nil
@@ -42,9 +41,10 @@ func (ch *moveCouriersCommandHandler) Handle(ctx context.Context, command MoveCo
 		return err
 	}
 
-	uow.Begin(ctx)
+	// Изменили и сохранили
+	ch.unitOfWork.Begin(ctx)
 	for _, assignedOrder := range assignedOrders {
-		courier, err := uow.CourierRepository().Get(ctx, *assignedOrder.CourierID())
+		courier, err := ch.unitOfWork.CourierRepository().Get(ctx, *assignedOrder.CourierID())
 		if err != nil {
 			if errors.Is(err, errs.ErrObjectNotFound) {
 				return nil
@@ -57,7 +57,7 @@ func (ch *moveCouriersCommandHandler) Handle(ctx context.Context, command MoveCo
 			return err
 		}
 
-		if courier.Location().Equals(assignedOrder.Location()) {
+		if courier.Location().Equal(assignedOrder.Location()) {
 			err := assignedOrder.Complete()
 			if err != nil {
 				return err
@@ -68,16 +68,16 @@ func (ch *moveCouriersCommandHandler) Handle(ctx context.Context, command MoveCo
 			}
 		}
 
-		err = uow.OrderRepository().Update(ctx, assignedOrder)
+		err = ch.unitOfWork.OrderRepository().Update(ctx, assignedOrder)
 		if err != nil {
 			return err
 		}
-		err = uow.CourierRepository().Update(ctx, courier)
+		err = ch.unitOfWork.CourierRepository().Update(ctx, courier)
 		if err != nil {
 			return err
 		}
 	}
-	err = uow.Commit(ctx)
+	err = ch.unitOfWork.Commit(ctx)
 	if err != nil {
 		return err
 	}

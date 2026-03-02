@@ -36,13 +36,6 @@ func Test_CreateOrderCommandHandlerShouldBeSuccessWhenParamsAreCorrect(t *testin
 	unitOfWorkMock.
 		On("OrderRepository").
 		Return(orderRepositoryMock)
-	unitOfWorkFactoryMock := &portsmocks.UnitOfWorkFactoryMock{}
-	unitOfWorkFactoryMock.
-		On("New", ctx).
-		Return(unitOfWorkMock, nil)
-	unitOfWorkMock.
-		On("RollbackUnlessCommitted", ctx).
-		Return()
 
 	geoClientMock := &portsmocks.GeoClientMock{}
 	geoClientMock.
@@ -51,7 +44,7 @@ func Test_CreateOrderCommandHandlerShouldBeSuccessWhenParamsAreCorrect(t *testin
 		Once()
 
 	// Act
-	createOrderCommandHandler, err := NewCreateOrderCommandHandler(unitOfWorkFactoryMock, geoClientMock)
+	createOrderCommandHandler, err := NewCreateOrderCommandHandler(unitOfWorkMock, geoClientMock)
 	assert.NoError(t, err)
 	createOrderCommand, err := NewCreateOrderCommand(orderAggregate.ID(),
 		"Несуществующая", 10)

@@ -3,14 +3,21 @@ package cmd
 import (
 	kafkain "delivery-service/internal/adapters/in/kafka"
 	grpcout "delivery-service/internal/adapters/out/grpc/geo"
+	kafkaout "delivery-service/internal/adapters/out/kafka"
 	"delivery-service/internal/adapters/out/postgres"
+	"delivery-service/internal/adapters/out/postgres/outboxrepo"
+	"delivery-service/internal/core/application/eventhandlers"
 	"delivery-service/internal/core/application/usecases/commands"
 	"delivery-service/internal/core/application/usecases/queries"
+	"delivery-service/internal/core/domain/model/order"
 	"delivery-service/internal/core/domain/services"
 	"delivery-service/internal/core/ports"
 	"delivery-service/internal/jobs"
+	"delivery-service/internal/pkg/ddd"
+	"delivery-service/internal/pkg/outbox"
 	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
+	"reflect"
 	"sync"
 
 	_ "gorm.io/gorm"
@@ -33,9 +40,9 @@ func NewCompositionRoot(configs Config, gormDb *gorm.DB) *CompositionRoot {
 	}
 }
 
-func (cr *CompositionRoot) NewOrderDispatcherService() services.OrderDispatcherService {
-	orderDispatcherService := services.NewOrderDispatcherService()
-	return orderDispatcherService
+func (cr *CompositionRoot) NewOrderDispatcher() services.OrderDispatcher {
+	orderDispatcher := services.NewOrderDispatcher()
+	return orderDispatcher
 }
 
 func (cr *CompositionRoot) NewUnitOfWork() ports.UnitOfWork {
@@ -46,16 +53,8 @@ func (cr *CompositionRoot) NewUnitOfWork() ports.UnitOfWork {
 	return unitOfWork
 }
 
-func (cr *CompositionRoot) NewUnitOfWorkFactory() ports.UnitOfWorkFactory {
-	unitOfWorkFactory, err := postgres.NewUnitOfWorkFactory(cr.gormDb)
-	if err != nil {
-		log.Fatalf("cannot create UnitOfWorkFactory: %v", err)
-	}
-	return unitOfWorkFactory
-}
-
 func (cr *CompositionRoot) NewCreateOrderCommandHandler() commands.CreateOrderCommandHandler {
-	commandHandler, err := commands.NewCreateOrderCommandHandler(cr.NewUnitOfWorkFactory(), cr.NewGeoClient())
+	commandHandler, err := commands.NewCreateOrderCommandHandler(cr.NewUnitOfWork(), cr.NewGeoClient())
 	if err != nil {
 		log.Fatalf("cannot create CreateOrderCommandHandler: %v", err)
 	}
@@ -63,32 +62,16 @@ func (cr *CompositionRoot) NewCreateOrderCommandHandler() commands.CreateOrderCo
 }
 
 func (cr *CompositionRoot) NewCreateCourierCommandHandler() commands.CreateCourierCommandHandler {
-	commandHandler, err := commands.NewCreateCourierHandler(cr.NewUnitOfWorkFactory())
+	commandHandler, err := commands.NewCreateCourierCommandHandler(cr.NewUnitOfWork())
 	if err != nil {
 		log.Fatalf("cannot create CreateCourierCommandHandler: %v", err)
 	}
 	return commandHandler
 }
 
-func (cr *CompositionRoot) AddStoragePlaceToCourierCommandHandler() commands.AddStoragePlaceToCourierCommandHandler {
-	commandHandler, err := commands.NewAddStoragePlaceToCourierCommandHandler(cr.NewUnitOfWorkFactory())
-	if err != nil {
-		log.Fatalf("cannot create AddStoragePlaceToCourierCommandHandler: %v", err)
-	}
-	return commandHandler
-}
-
-func (cr *CompositionRoot) MoveCouriersCommandHandler() commands.MoveCouriersCommandHandler {
-	commandHandler, err := commands.NewMoveCouriersCommandHandler(cr.NewUnitOfWorkFactory())
-	if err != nil {
-		log.Fatalf("cannot create MoveCouriersCommandHandler: %v", err)
-	}
-	return commandHandler
-}
-
 func (cr *CompositionRoot) NewAssignOrdersCommandHandler() commands.AssignOrdersCommandHandler {
 	commandHandler, err := commands.NewAssignOrdersCommandHandler(
-		cr.NewUnitOfWorkFactory(), cr.NewOrderDispatcherService())
+		cr.NewUnitOfWork(), cr.NewOrderDispatcher())
 	if err != nil {
 		log.Fatalf("cannot create AssignOrdersCommandHandler: %v", err)
 	}
@@ -97,7 +80,7 @@ func (cr *CompositionRoot) NewAssignOrdersCommandHandler() commands.AssignOrders
 
 func (cr *CompositionRoot) NewMoveCouriersCommandHandler() commands.MoveCouriersCommandHandler {
 	commandHandler, err := commands.NewMoveCouriersCommandHandler(
-		cr.NewUnitOfWorkFactory())
+		cr.NewUnitOfWork())
 	if err != nil {
 		log.Fatalf("cannot create MoveCouriersCommandHandler: %v", err)
 	}
@@ -160,4 +143,56 @@ func (cr *CompositionRoot) NewBasketConfirmedConsumer() kafkain.BasketConfirmedC
 	}
 	cr.RegisterCloser(consumer)
 	return consumer
+}
+
+func (cr *CompositionRoot) NewOrderCompletedDomainEventHandler() ddd.EventHandler {
+	producer := cr.NewOrderProducer()
+	handler, err := eventhandlers.NewOrderCompletedDomainEventHandler(producer)
+	if err != nil {
+		log.Fatalf("cannot create OrderCompletedDomainEventHandler: %v", err)
+	}
+	return handler
+}
+
+func (cr *CompositionRoot) NewMediatrWithSubscriptions() ddd.Mediatr {
+	mediatr := ddd.NewMediatr()
+	mediatr.Subscribe(cr.NewOrderCompletedDomainEventHandler(), order.NewEmptyCompletedDomainEvent())
+	return mediatr
+}
+
+func (cr *CompositionRoot) NewOrderProducer() ports.OrderProducer {
+	producer, err := kafkaout.NewOrderProducer([]string{cr.configs.KafkaHost}, cr.configs.KafkaOrderChangedTopic)
+	if err != nil {
+		log.Fatalf("cannot create OrderProducer: %v", err)
+	}
+	cr.RegisterCloser(producer)
+	return producer
+}
+
+func (cr *CompositionRoot) NewEventRegistry() outbox.EventRegistry {
+	registry, err := outbox.NewEventRegistry()
+	if err != nil {
+		log.Fatalf("cannot create EventRegistry: %v", err)
+	}
+	err = registry.RegisterDomainEvent(reflect.TypeOf(order.CompletedDomainEvent{}))
+	if err != nil {
+		log.Fatalf("cannot register domain event: %v", err)
+	}
+	return registry
+}
+
+func (cr *CompositionRoot) NewOutboxRepository() outboxrepo.OutboxRepository {
+	repository, err := outboxrepo.NewRepository(cr.gormDb)
+	if err != nil {
+		log.Fatalf("cannot create OutboxRepository: %v", err)
+	}
+	return repository
+}
+
+func (cr *CompositionRoot) NewOutboxJob() cron.Job {
+	job, err := jobs.NewOutboxJob(cr.NewOutboxRepository(), cr.NewEventRegistry(), cr.NewMediatrWithSubscriptions())
+	if err != nil {
+		log.Fatalf("cannot create OutboxJob: %v", err)
+	}
+	return job
 }

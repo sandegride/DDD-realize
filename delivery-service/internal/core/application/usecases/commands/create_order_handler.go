@@ -14,13 +14,13 @@ type CreateOrderCommandHandler interface {
 var _ CreateOrderCommandHandler = &createOrderCommandHandler{}
 
 type createOrderCommandHandler struct {
-	uowFactory ports.UnitOfWorkFactory
+	unitOfWork ports.UnitOfWork
 	geoClient  ports.GeoClient
 }
 
 func NewCreateOrderCommandHandler(
-	uowFactory ports.UnitOfWorkFactory, geoClient ports.GeoClient) (CreateOrderCommandHandler, error) {
-	if uowFactory == nil {
+	unitOfWork ports.UnitOfWork, geoClient ports.GeoClient) (CreateOrderCommandHandler, error) {
+	if unitOfWork == nil {
 		return nil, errs.NewValueIsRequiredError("unitOfWork")
 	}
 	if geoClient == nil {
@@ -28,7 +28,7 @@ func NewCreateOrderCommandHandler(
 	}
 
 	return &createOrderCommandHandler{
-		uowFactory: uowFactory,
+		unitOfWork: unitOfWork,
 		geoClient:  geoClient}, nil
 }
 
@@ -37,13 +37,7 @@ func (ch *createOrderCommandHandler) Handle(ctx context.Context, command CreateO
 		return errs.NewValueIsRequiredError("add address command")
 	}
 
-	uow, err := ch.uowFactory.New(ctx)
-	if err != nil {
-		return err
-	}
-	defer uow.RollbackUnlessCommitted(ctx)
-
-	orderAggregate, err := uow.OrderRepository().Get(ctx, command.OrderID())
+	orderAggregate, err := ch.unitOfWork.OrderRepository().Get(ctx, command.OrderID())
 	if err != nil {
 		return err
 	}
@@ -61,7 +55,7 @@ func (ch *createOrderCommandHandler) Handle(ctx context.Context, command CreateO
 		return err
 	}
 
-	err = uow.OrderRepository().Add(ctx, orderAggregate)
+	err = ch.unitOfWork.OrderRepository().Add(ctx, orderAggregate)
 	if err != nil {
 		return err
 	}

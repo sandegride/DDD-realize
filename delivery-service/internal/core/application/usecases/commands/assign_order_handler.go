@@ -20,14 +20,14 @@ type AssignOrdersCommandHandler interface {
 var _ AssignOrdersCommandHandler = &assignOrdersCommandHandler{}
 
 type assignOrdersCommandHandler struct {
-	uowFactory      ports.UnitOfWorkFactory
-	orderDispatcher services.OrderDispatcherService
+	unitOfWork      ports.UnitOfWork
+	orderDispatcher services.OrderDispatcher
 }
 
 func NewAssignOrdersCommandHandler(
-	uowFactory ports.UnitOfWorkFactory,
-	orderDispatcher services.OrderDispatcherService) (AssignOrdersCommandHandler, error) {
-	if uowFactory == nil {
+	unitOfWork ports.UnitOfWork,
+	orderDispatcher services.OrderDispatcher) (AssignOrdersCommandHandler, error) {
+	if unitOfWork == nil {
 		return nil, errs.NewValueIsRequiredError("unitOfWork")
 	}
 	if orderDispatcher == nil {
@@ -35,18 +35,16 @@ func NewAssignOrdersCommandHandler(
 	}
 
 	return &assignOrdersCommandHandler{
-		uowFactory:      uowFactory,
+		unitOfWork:      unitOfWork,
 		orderDispatcher: orderDispatcher}, nil
 }
 
 func (ch *assignOrdersCommandHandler) Handle(ctx context.Context, command AssignOrdersCommand) error {
-	uow, err := ch.uowFactory.New(ctx)
-	if err != nil {
-		return err
+	if !command.IsValid() {
+		return errs.NewValueIsRequiredError("add address command")
 	}
-	defer uow.RollbackUnlessCommitted(ctx)
 
-	orderAggregate, err := uow.OrderRepository().GetFirstInCreatedStatus(ctx)
+	orderAggregate, err := ch.unitOfWork.OrderRepository().GetFirstInCreatedStatus(ctx)
 	if err != nil {
 		if errors.Is(err, errs.ErrObjectNotFound) {
 			return NotAvailableOrders
@@ -54,7 +52,7 @@ func (ch *assignOrdersCommandHandler) Handle(ctx context.Context, command Assign
 		return err
 	}
 
-	couriers, err := uow.CourierRepository().GetAllFree(ctx)
+	couriers, err := ch.unitOfWork.CourierRepository().GetAllFree(ctx)
 	if err != nil {
 		if errors.Is(err, errs.ErrObjectNotFound) {
 			return NotAvailableCouriers
@@ -70,18 +68,18 @@ func (ch *assignOrdersCommandHandler) Handle(ctx context.Context, command Assign
 		return err
 	}
 
-	uow.Begin(ctx)
+	ch.unitOfWork.Begin(ctx)
 
-	err = uow.OrderRepository().Update(ctx, orderAggregate)
+	err = ch.unitOfWork.OrderRepository().Update(ctx, orderAggregate)
 	if err != nil {
 		return err
 	}
-	err = uow.CourierRepository().Update(ctx, courier)
+	err = ch.unitOfWork.CourierRepository().Update(ctx, courier)
 	if err != nil {
 		return err
 	}
 
-	err = uow.Commit(ctx)
+	err = ch.unitOfWork.Commit(ctx)
 	if err != nil {
 		return err
 	}

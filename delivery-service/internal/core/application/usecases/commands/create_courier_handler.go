@@ -9,33 +9,30 @@ import (
 )
 
 type CreateCourierCommandHandler interface {
-	Handle(ctx context.Context, command CreateCourierCommand) error
+	Handle(context.Context, CreateCourierCommand) error
 }
 
-var _ CreateCourierCommandHandler = &createCourierHandler{}
+var _ CreateCourierCommandHandler = &createCourierCommandHandler{}
 
-type createCourierHandler struct {
-	uowFactory ports.UnitOfWorkFactory
+type createCourierCommandHandler struct {
+	unitOfWork ports.UnitOfWork
 }
 
-func NewCreateCourierHandler(uowFactory ports.UnitOfWorkFactory) (CreateCourierCommandHandler, error) {
-	if uowFactory == nil {
+func NewCreateCourierCommandHandler(
+	unitOfWork ports.UnitOfWork) (CreateCourierCommandHandler, error) {
+	if unitOfWork == nil {
 		return nil, errs.NewValueIsRequiredError("unitOfWork")
 	}
 
-	return &createCourierHandler{uowFactory: uowFactory}, nil
+	return &createCourierCommandHandler{
+		unitOfWork: unitOfWork,
+	}, nil
 }
 
-func (h *createCourierHandler) Handle(ctx context.Context, command CreateCourierCommand) error {
+func (ch *createCourierCommandHandler) Handle(ctx context.Context, command CreateCourierCommand) error {
 	if !command.IsValid() {
-		return errs.NewValueIsRequiredError("create courier command")
+		return errs.NewValueIsRequiredError("add address command")
 	}
-
-	uow, err := h.uowFactory.New(ctx)
-	if err != nil {
-		return err
-	}
-	defer uow.RollbackUnlessCommitted(ctx)
 
 	location := kernel.NewRandomLocation()
 	courierAggregate, err := courier.NewCourier(command.Name(), command.Speed(), location)
@@ -43,10 +40,9 @@ func (h *createCourierHandler) Handle(ctx context.Context, command CreateCourier
 		return err
 	}
 
-	err = uow.CourierRepository().Add(ctx, courierAggregate)
+	err = ch.unitOfWork.CourierRepository().Add(ctx, courierAggregate)
 	if err != nil {
 		return err
 	}
 	return nil
-
 }

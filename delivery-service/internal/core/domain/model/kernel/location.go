@@ -64,7 +64,7 @@ func (a Location) IsValid() bool {
 	return a.valid
 }
 
-func (a Location) Equals(other Location) bool {
+func (a Location) Equal(other Location) bool {
 	return a.x == other.x && a.y == other.y
 }
 

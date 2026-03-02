@@ -8,6 +8,7 @@ import (
 	"delivery-service/internal/adapters/out/postgres/orderrepo"
 	"delivery-service/internal/generated/servers"
 	"delivery-service/internal/pkg/errs"
+	"delivery-service/internal/pkg/outbox"
 	"fmt"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
@@ -92,12 +93,7 @@ func crateDbIfNotExists(host string, port string, user string,
 	if err != nil {
 		log.Fatalf("Ошибка подключения к PostgreSQL: %v", err)
 	}
-
-	defer func() {
-		if err := db.Close(); err != nil {
-			log.Printf("ошибка при закрытии db: %v", err)
-		}
-	}()
+	defer db.Close()
 
 	// Создаём базу данных, если её нет
 	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbName))
@@ -160,6 +156,11 @@ func mustAutoMigrate(db *gorm.DB) {
 	}
 
 	err = db.AutoMigrate(&orderrepo.OrderDTO{})
+	if err != nil {
+		log.Fatalf("Ошибка миграции: %v", err)
+	}
+
+	err = db.AutoMigrate(&outbox.Message{})
 	if err != nil {
 		log.Fatalf("Ошибка миграции: %v", err)
 	}
@@ -244,6 +245,10 @@ func startCron(compositionRoot *cmd.CompositionRoot) {
 		log.Fatalf("ошибка при добавлении задачи: %v", err)
 	}
 	_, err = c.AddJob("@every 1s", compositionRoot.NewMoveCouriersJob())
+	if err != nil {
+		log.Fatalf("ошибка при добавлении задачи: %v", err)
+	}
+	_, err = c.AddJob("@every 1s", compositionRoot.NewOutboxJob())
 	if err != nil {
 		log.Fatalf("ошибка при добавлении задачи: %v", err)
 	}

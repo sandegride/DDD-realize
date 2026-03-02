@@ -40,19 +40,19 @@ func Test_DispatchService_ShouldFindNearestCourierForOrder(t *testing.T) {
 	couriers := []*courier.Courier{courier1, courier2, courier3}
 
 	// Act
-	dispatchService := NewOrderDispatcherService()
+	dispatchService := NewOrderDispatcher()
 	winner, err := dispatchService.Dispatch(orderAggregate, couriers)
 
 	// Assert
 	assert.NoError(t, err)
 	assert.Equal(t, courier2, winner)
-	assert.Equal(t, orderAggregate.ID(), courier2.StoragePlaces()[0].OrderID())
+	assert.Equal(t, orderAggregate.ID(), *courier2.StoragePlaces()[0].OrderID())
 	assert.Equal(t, order.StatusAssigned, orderAggregate.Status())
-	assert.Equal(t, courier2.ID(), orderAggregate.CourierID())
+	assert.Equal(t, courier2.ID(), *orderAggregate.CourierID())
 }
 
 func Test_DispatchService_ShouldReturnError_WhenOrderIsNil(t *testing.T) {
-	dispatcher := NewOrderDispatcherService()
+	dispatcher := NewOrderDispatcher()
 	_, err := dispatcher.Dispatch(nil, []*courier.Courier{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "order")
@@ -63,7 +63,7 @@ func Test_DispatchService_ShouldReturnError_WhenCouriersListIsEmpty(t *testing.T
 	o, err := order.NewOrder(uuid.New(), location, 1)
 	assert.NoError(t, err)
 
-	dispatcher := NewOrderDispatcherService()
+	dispatcher := NewOrderDispatcher()
 	_, err = dispatcher.Dispatch(o, []*courier.Courier{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "couriers")
@@ -77,10 +77,10 @@ func Test_DispatchService_ShouldReturnError_WhenNoCourierCanTakeOrder(t *testing
 	c1, err := courier.NewCourier("Пеший с сумкой 10 литров", 1, location)
 	assert.NoError(t, err)
 
-	dispatcher := NewOrderDispatcherService()
+	dispatcher := NewOrderDispatcher()
 	_, err = dispatcher.Dispatch(o, []*courier.Courier{c1})
 	assert.Error(t, err)
-	assert.Equal(t, ErrNotFoundFreeCourier, err)
+	assert.Equal(t, ErrSuitableCourierWasNotFound, err)
 }
 
 func Test_DispatchService_ShouldSelectFirstCourier_WhenEqualDistance(t *testing.T) {
@@ -95,7 +95,7 @@ func Test_DispatchService_ShouldSelectFirstCourier_WhenEqualDistance(t *testing.
 	c2, err := courier.NewCourier("Second", 1, location)
 	assert.NoError(t, err)
 
-	dispatcher := NewOrderDispatcherService()
+	dispatcher := NewOrderDispatcher()
 	winner, err := dispatcher.Dispatch(o, []*courier.Courier{c1, c2})
 	assert.NoError(t, err)
 	assert.Equal(t, c1, winner)
